@@ -101,9 +101,12 @@ jobs:
             exit 1
           fi
 
+          BASE_APK_NAME=$(basename "$BASE_APK")
           cp "$BASE_APK" "$GITHUB_WORKSPACE/raw-base-original.apk"
           VERSION_NAME=$(echo "$BADGING" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -n1)
+          echo "BASE_APK_NAME=$BASE_APK_NAME" >> "$GITHUB_ENV"
           echo "TIKTOK_VERSION=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "==> Base filename: $BASE_APK_NAME"
           echo "==> Stock TikTok version: $VERSION_NAME"
 
       - name: Build ReVanced patches
@@ -167,14 +170,35 @@ jobs:
             -e "Disable login requirement"
 
           SPLITS_DIR="$GITHUB_WORKSPACE/splits_to_merge_original"
+          SOURCE_DIR="$GITHUB_WORKSPACE/tiktok_original_dl"
           rm -rf "$SPLITS_DIR"
           mkdir -p "$SPLITS_DIR"
+
+          # The patched APK replaces ONLY the original base. Every other split
+          # from Google Play is preserved, including dynamic-feature dex,
+          # asset/resource and ABI/config splits required at runtime.
           cp unsigned-tiktok-original.apk "$SPLITS_DIR/base.apk"
 
-          find "$GITHUB_WORKSPACE/tiktok_original_dl" -maxdepth 1 -type f -name 'config.*.apk' -exec cp -f {} "$SPLITS_DIR"/ \;
+          INCLUDED=0
+          for apk in "$SOURCE_DIR"/*.apk; do
+            [ -f "$apk" ] || continue
+            name=$(basename "$apk")
+            if [ "$name" = "$BASE_APK_NAME" ]; then
+              echo "Skipping original unpatched base: $name"
+              continue
+            fi
+            echo "Including original split: $name"
+            cp -f "$apk" "$SPLITS_DIR/$name"
+            INCLUDED=$((INCLUDED + 1))
+          done
 
-          echo "==> Splits selected for merge"
-          ls -lh "$SPLITS_DIR"
+          echo "==> Included $INCLUDED original split APK(s) plus patched base"
+          if [ "$INCLUDED" -eq 0 ]; then
+            echo "WARNING: no split APKs were found; continuing as monolithic APK"
+          fi
+
+          echo "==> Full merge input"
+          find "$SPLITS_DIR" -maxdepth 1 -type f -name '*.apk' -printf '%f  %k KB\n' | sort
 
           java -jar APKEditor.jar m \
             -i "$SPLITS_DIR" \
@@ -204,28 +228,28 @@ jobs:
             --ks local.keystore \
             --ks-pass "pass:$KS_PASS" \
             --ks-key-alias "$KS_ALIAS" \
-            --out tiktok-rv-original-fixed.apk \
+            --out tiktok-rv-all-splits-fixed.apk \
             unsigned-merged-original.apk
 
-          "$APKSIGNER" verify --verbose --print-certs tiktok-rv-original-fixed.apk
+          "$APKSIGNER" verify --verbose --print-certs tiktok-rv-all-splits-fixed.apk
 
           AAPT=$(find "$ANDROID_SDK_ROOT/build-tools" -type f -name aapt | sort -V | tail -n1)
           echo "==> Final package"
-          "$AAPT" dump badging tiktok-rv-original-fixed.apk | head -n 5
+          "$AAPT" dump badging tiktok-rv-all-splits-fixed.apk | head -n 5
 
           echo "==> AndroidManifest.xml check"
-          unzip -l tiktok-rv-original-fixed.apk AndroidManifest.xml
+          unzip -l tiktok-rv-all-splits-fixed.apk AndroidManifest.xml
 
           echo "==> Output"
-          ls -lh tiktok-rv-original-fixed.apk
-          sha256sum tiktok-rv-original-fixed.apk | tee tiktok-rv-original-fixed.apk.sha256
+          ls -lh tiktok-rv-all-splits-fixed.apk
+          sha256sum tiktok-rv-all-splits-fixed.apk | tee tiktok-rv-all-splits-fixed.apk.sha256
 
       - name: Upload fixed APK
         uses: actions/upload-artifact@v4
         with:
-          name: tiktok-rv-fixed-${{ env.TIKTOK_VERSION }}
+          name: tiktok-rv-all-splits-fixed-${{ env.TIKTOK_VERSION }}
           path: |
-            tiktok-rv-original-fixed.apk
-            tiktok-rv-original-fixed.apk.sha256
+            tiktok-rv-all-splits-fixed.apk
+            tiktok-rv-all-splits-fixed.apk.sha256
           if-no-files-found: error
           retention-days: 14
