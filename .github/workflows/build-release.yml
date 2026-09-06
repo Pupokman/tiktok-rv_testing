@@ -2,11 +2,6 @@ name: Build TikTok-RV release
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/build-release.yml
 
 permissions:
   contents: write
@@ -290,7 +285,7 @@ jobs:
           Earlier test builds from this fork used disposable signing keys. Uninstall those once before installing this release. Future releases signed with this release key should update normally.
 
           Release signing certificate SHA-256:
-          `B2:6B:CE:54:24:44:C1:26:40:48:57:C1:4D:36:47:0A:F3:24:52:E9:CE:D4:0A:34:A1:0C:FF:FB:47:10:1F:0F`
+          B2:6B:CE:54:24:44:C1:26:40:48:57:C1:4D:36:47:0A:F3:24:52:E9:CE:D4:0A:34:A1:0C:FF:FB:47:10:1F:0F
 
           Tested on an Android emulator: installation, launch and patched TikTok functionality are working.
           EOF
