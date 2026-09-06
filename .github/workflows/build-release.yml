@@ -2,9 +2,14 @@ name: Build TikTok-RV release
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build-release.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -166,9 +171,8 @@ jobs:
           rm -rf "$SPLITS_DIR"
           mkdir -p "$SPLITS_DIR"
 
-          # Keep the patched base and every original non-base split. Recent
-          # TikTok builds depend on dynamic-feature dex/assets/resources at
-          # runtime, so dropping these causes splash-screen crashes.
+          # Replace only the stock base. Recent TikTok builds require the
+          # remaining dynamic-feature, dex, asset, resource and config splits.
           cp unsigned-tiktok-original.apk "$SPLITS_DIR/base.apk"
 
           INCLUDED=0
@@ -220,6 +224,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          EXPECTED_CERT_SHA256="b26bce542444c126404857c14d36470af32452e9ced40a34a10cfffb47101f0f"
           KS="$SIGNING_DIR/release.keystore"
           KS_PASS=$(cat "$SIGNING_DIR/password.txt")
           KS_ALIAS=$(cat "$SIGNING_DIR/alias.txt")
@@ -234,20 +239,19 @@ jobs:
             unsigned-merged-original.apk
 
           "$APKSIGNER" verify --verbose --print-certs tiktok-rv-original.apk | tee signing-certificate.txt
+          if ! tr '[:upper:]' '[:lower:]' < signing-certificate.txt | grep -q "$EXPECTED_CERT_SHA256"; then
+            echo "ERROR: APK was signed with an unexpected certificate"
+            exit 1
+          fi
 
           AAPT=$(find "$ANDROID_SDK_ROOT/build-tools" -type f -name aapt | sort -V | tail -n1)
-          echo "==> Final package"
           "$AAPT" dump badging tiktok-rv-original.apk | head -n 5
-
-          echo "==> AndroidManifest.xml"
           unzip -l tiktok-rv-original.apk AndroidManifest.xml
-
           sha256sum tiktok-rv-original.apk | tee tiktok-rv-original.apk.sha256
 
-          # Never upload the keystore or signing bundle as an artifact.
           rm -rf "$SIGNING_DIR" "$RUNNER_TEMP/signing-bundle.tar.gz"
 
-      - name: Upload release APK
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: tiktok-rv-release-${{ env.TIKTOK_VERSION }}
@@ -257,3 +261,53 @@ jobs:
             signing-certificate.txt
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="v${TIKTOK_VERSION}-fixed.1"
+          TITLE="TikTok-RV ${TIKTOK_VERSION} — fixed split build"
+          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+
+          cat > "$NOTES_FILE" <<EOF
+          Compatibility build for TikTok ${TIKTOK_VERSION} based on the open-source TikTok-RV/ReVanced patch set.
+
+          This repository is a fork of [thelok1s/tiktok-rv](https://github.com/thelok1s/tiktok-rv), not the original project.
+
+          ### What is fixed
+          - selects the real TikTok base APK instead of a dynamic-feature split;
+          - keeps every required non-base split during the universal APK merge, preventing the splash-screen crash seen in newer TikTok builds;
+          - uses one persistent release signing key so future releases can be installed as updates.
+
+          ### Included patches
+          ReVanced settings, feed ad filtering, downloads, SIM region spoof, remembered Clear Display, seekbar, playback speed, and optional login-requirement bypass.
+
+          ### Installation note
+          Earlier test builds from this fork used disposable signing keys. Uninstall those once before installing this release. Future releases signed with this release key should update normally.
+
+          Release signing certificate SHA-256:
+          `B2:6B:CE:54:24:44:C1:26:40:48:57:C1:4D:36:47:0A:F3:24:52:E9:CE:D4:0A:34:A1:0C:FF:FB:47:10:1F:0F`
+
+          Tested on an Android emulator: installation, launch and patched TikTok functionality are working.
+          EOF
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              tiktok-rv-original.apk \
+              tiktok-rv-original.apk.sha256 \
+              signing-certificate.txt \
+              --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES_FILE"
+          else
+            gh release create "$TAG" \
+              tiktok-rv-original.apk \
+              tiktok-rv-original.apk.sha256 \
+              signing-certificate.txt \
+              --target "$GITHUB_SHA" \
+              --title "$TITLE" \
+              --notes-file "$NOTES_FILE"
+          fi
