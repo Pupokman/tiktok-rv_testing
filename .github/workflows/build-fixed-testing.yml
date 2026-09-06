@@ -1,0 +1,231 @@
+name: Build fixed TikTok-RV test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build-fixed-testing.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download stock TikTok
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PACKAGE="com.zhiliaoapp.musically"
+          DOWNLOAD_DIR="$GITHUB_WORKSPACE/tiktok_original_dl"
+          mkdir -p "$DOWNLOAD_DIR"
+
+          echo "==> Trying gplaydl first"
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
+          uv tool install gplaydl
+
+          uv tool run gplaydl auth --arch arm64 || true
+          if ! uv tool run gplaydl download "$PACKAGE" -a arm64 --no-extras -o "$DOWNLOAD_DIR"; then
+            echo "gplaydl failed; falling back to APKPure via apkeep"
+          fi
+
+          if ! find "$DOWNLOAD_DIR" -maxdepth 1 -type f | grep -q .; then
+            wget -q https://github.com/EFForg/apkeep/releases/download/1.0.0/apkeep-x86_64-unknown-linux-gnu -O apkeep
+            chmod +x apkeep
+            ./apkeep -a "$PACKAGE" -d apk-pure "$DOWNLOAD_DIR"
+          fi
+
+          shopt -s nullglob
+          archives=("$DOWNLOAD_DIR"/*.xapk "$DOWNLOAD_DIR"/*.apks)
+          for archive in "${archives[@]}"; do
+            echo "==> Extracting split archive: $archive"
+            EXTRACT_DIR="$DOWNLOAD_DIR/extracted_$(basename "$archive")"
+            mkdir -p "$EXTRACT_DIR"
+            unzip -q "$archive" -d "$EXTRACT_DIR"
+            find "$EXTRACT_DIR" -type f -name '*.apk' -exec cp -f {} "$DOWNLOAD_DIR"/ \;
+            rm -f "$archive"
+          done
+          shopt -u nullglob
+
+          echo "==> Downloaded APK files"
+          find "$DOWNLOAD_DIR" -maxdepth 1 -type f -name '*.apk' -printf '%f  %k KB\n' | sort
+
+          BASE_APK=""
+          if [ -f "$DOWNLOAD_DIR/$PACKAGE.apk" ]; then
+            BASE_APK="$DOWNLOAD_DIR/$PACKAGE.apk"
+          elif [ -f "$DOWNLOAD_DIR/base.apk" ]; then
+            BASE_APK="$DOWNLOAD_DIR/base.apk"
+          else
+            BASE_APK=$(find "$DOWNLOAD_DIR" -maxdepth 1 -type f -name '*.apk' \
+              ! -name '*-asset.apk' \
+              ! -name '*df_*.apk' \
+              ! -name 'config.*.apk' \
+              ! -name 'split_*.apk' \
+              -exec ls -S {} + 2>/dev/null | head -n 1 || true)
+          fi
+
+          if [ -z "$BASE_APK" ] || [ ! -f "$BASE_APK" ]; then
+            echo "ERROR: could not locate the real base APK"
+            exit 1
+          fi
+
+          AAPT=$(find "$ANDROID_SDK_ROOT/build-tools" -type f -name aapt | sort -V | tail -n1)
+          echo "==> Selected base: $BASE_APK"
+          BADGING=$($AAPT dump badging "$BASE_APK")
+          echo "$BADGING" | head -n 3
+
+          ACTUAL_PACKAGE=$(echo "$BADGING" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
+          if [ "$ACTUAL_PACKAGE" != "$PACKAGE" ]; then
+            echo "ERROR: selected APK has package '$ACTUAL_PACKAGE', expected '$PACKAGE'"
+            exit 1
+          fi
+
+          cp "$BASE_APK" "$GITHUB_WORKSPACE/raw-base-original.apk"
+          VERSION_NAME=$(echo "$BADGING" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -n1)
+          echo "TIKTOK_VERSION=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "==> Stock TikTok version: $VERSION_NAME"
+
+      - name: Build ReVanced patches
+        env:
+          ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
+          ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd revanced-patches
+          chmod +x gradlew
+          ./gradlew build -x test
+
+      - name: Download ReVanced CLI and APKEditor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CLI_URL=$(curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/ReVanced/revanced-cli/releases/latest \
+            | jq -r '.assets[] | select(.name | endswith(".jar")) | select(.name | endswith(".sig") | not) | .browser_download_url' \
+            | head -n1)
+
+          if [ -z "$CLI_URL" ] || [ "$CLI_URL" = "null" ]; then
+            echo "ERROR: ReVanced CLI asset not found"
+            exit 1
+          fi
+
+          echo "==> ReVanced CLI: $CLI_URL"
+          wget -q "$CLI_URL" -O revanced-cli.jar
+          wget -q https://github.com/REAndroid/APKEditor/releases/download/V1.4.1/APKEditor-1.4.1.jar -O APKEditor.jar
+
+      - name: Patch and merge TikTok
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PATCH_BUNDLE=$(find revanced-patches/patches/build/libs -type f -name 'patches-*.rvp' ! -name '*sources*' | head -n1)
+          if [ -z "$PATCH_BUNDLE" ] || [ ! -f "$PATCH_BUNDLE" ]; then
+            echo "ERROR: patch bundle not found"
+            exit 1
+          fi
+
+          echo "==> Patch bundle: $PATCH_BUNDLE"
+          java -jar revanced-cli.jar patch raw-base-original.apk \
+            -p "$PATCH_BUNDLE" \
+            -b \
+            -o unsigned-tiktok-original.apk \
+            --exclusive \
+            -e "Settings" \
+            -e "Feed filter" \
+            -e "Downloads" \
+            -e "SIM spoof" \
+            -e "Remember clear display" \
+            -e "Show seekbar" \
+            -e "Playback speed" \
+            -e "Disable login requirement"
+
+          SPLITS_DIR="$GITHUB_WORKSPACE/splits_to_merge_original"
+          rm -rf "$SPLITS_DIR"
+          mkdir -p "$SPLITS_DIR"
+          cp unsigned-tiktok-original.apk "$SPLITS_DIR/base.apk"
+
+          find "$GITHUB_WORKSPACE/tiktok_original_dl" -maxdepth 1 -type f -name 'config.*.apk' -exec cp -f {} "$SPLITS_DIR"/ \;
+
+          echo "==> Splits selected for merge"
+          ls -lh "$SPLITS_DIR"
+
+          java -jar APKEditor.jar m \
+            -i "$SPLITS_DIR" \
+            -o unsigned-merged-original.apk
+
+      - name: Sign and verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          KS_PASS="android"
+          KS_ALIAS="tiktok-rv-test"
+
+          keytool -genkeypair \
+            -keystore local.keystore \
+            -storepass "$KS_PASS" \
+            -keypass "$KS_PASS" \
+            -alias "$KS_ALIAS" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=tiktok-rv-testing"
+
+          APKSIGNER=$(find "$ANDROID_SDK_ROOT/build-tools" -type f -name apksigner | sort -V | tail -n1)
+
+          "$APKSIGNER" sign \
+            --ks local.keystore \
+            --ks-pass "pass:$KS_PASS" \
+            --ks-key-alias "$KS_ALIAS" \
+            --out tiktok-rv-original-fixed.apk \
+            unsigned-merged-original.apk
+
+          "$APKSIGNER" verify --verbose --print-certs tiktok-rv-original-fixed.apk
+
+          AAPT=$(find "$ANDROID_SDK_ROOT/build-tools" -type f -name aapt | sort -V | tail -n1)
+          echo "==> Final package"
+          "$AAPT" dump badging tiktok-rv-original-fixed.apk | head -n 5
+
+          echo "==> AndroidManifest.xml check"
+          unzip -l tiktok-rv-original-fixed.apk AndroidManifest.xml
+
+          echo "==> Output"
+          ls -lh tiktok-rv-original-fixed.apk
+          sha256sum tiktok-rv-original-fixed.apk | tee tiktok-rv-original-fixed.apk.sha256
+
+      - name: Upload fixed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiktok-rv-fixed-${{ env.TIKTOK_VERSION }}
+          path: |
+            tiktok-rv-original-fixed.apk
+            tiktok-rv-original-fixed.apk.sha256
+          if-no-files-found: error
+          retention-days: 14
