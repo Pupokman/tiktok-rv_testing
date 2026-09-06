@@ -1,168 +1,123 @@
-# tiktok-rv [RU]
+# TikTok-RV — compatibility fork
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/thelok1s/tiktok-rv/tiktok-patcher.yml?branch=main&label=Build)](https://github.com/thelok1s/tiktok-rv/actions/workflows/tiktok-patcher.yml) [![Latest Release](https://img.shields.io/github/v/release/thelok1s/tiktok-rv)](https://github.com/thelok1s/tiktok-rv/releases/latest) [![Downloads](https://img.shields.io/github/downloads/thelok1s/tiktok-rv/total)](https://github.com/thelok1s/tiktok-rv/releases) [![VirusTotal Scan](https://img.shields.io/badge/VirusTotal-Scan_Result-blue?logo=virustotal)](https://github.com/thelok1s/tiktok-rv/releases/latest)
+[![Release build](https://img.shields.io/github/actions/workflow/status/Pupokman/tiktok-rv_testing/build-release.yml?branch=main&label=release%20build)](https://github.com/Pupokman/tiktok-rv_testing/actions/workflows/build-release.yml)
+[![Latest release](https://img.shields.io/github/v/release/Pupokman/tiktok-rv_testing)](https://github.com/Pupokman/tiktok-rv_testing/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Pupokman/tiktok-rv_testing/total)](https://github.com/Pupokman/tiktok-rv_testing/releases)
 
-Этот репозиторий содержит автоматизированный GitHub Actions пайплайн для загрузки последней версии tiktok, патчинга, подписи и публикации мода каждые две недели.
+> **Это форк, а не оригинальный TikTok-RV.** Исходный проект: [thelok1s/tiktok-rv](https://github.com/thelok1s/tiktok-rv). Этот репозиторий появился как совместимый форк для свежих версий TikTok, когда upstream-сборки начали ломаться на новой структуре split APK.
 
-## Что не так с другими модами?
+Форк сохраняет исходный набор ReVanced-патчей, но исправляет саму сборку Universal APK: выбирается настоящий base APK, после патчинга возвращаются все необходимые split-модули, а релизы подписываются одним постоянным ключом.
 
-Очень многое. Моддеры пиарят свои каналы и суют кучу рекламы, блокируя приложение баннерами и "обновлениями", делая загрузку новой версии длительным процессом с множеством лишних шагов, где по пути нужно подписаться на 1337 каналов и перейти по 999 скам сслыкам. Добавляют слишком много фич в достаточно хрупкое (из-за встроенных защит и обфускации) приложение, раздувая размер приложения.  
+Текущая рабочая база протестирована на Android-эмуляторе: установка, запуск и функции модифицированного TikTok работают.
 
-С другой стороны у нас есть мод от ReVanced (а точнее - сборная солянка из плагинов), где вы модифиуруете свое, официальное приложение, патчами с открытым кодом. Однако патчи давно не обновлялись, а последняя версия которая их поддерживала (36.1, типо того) безнадежно устарела. Этот репозиторий содержит базовый минимум из обновленных патчей и пайплайн для сборки мода.
+## Скачать и установить
 
-<div style="display: flex; flex-wrap: wrap;">
-  <img style="width: 33%;" width="710" height="357" alt="image" src="https://github.com/user-attachments/assets/effaaeac-7b47-48c3-9b45-2c9a5154ee5d" />
-  <img style="width: 33%;" width="799" height="418" alt="image" src="https://github.com/user-attachments/assets/424c0a28-0e70-4417-9b7c-9811dcc8c9e5" />
-  <img style="width: 30%;" width="801" height="459" alt="image" src="https://github.com/user-attachments/assets/80b21929-a4d8-45a8-aceb-3c6fc4af67de" />
-   <p style="width: 100%;">
-    2 популярных мода и плагин. PUP — это не вирус, а просто мусорный софт / bloatware (Potentially Unwanted Program)
-  </p>
-  <img style="width: 50%;" width="682" height="182" alt="image" src="https://github.com/user-attachments/assets/92a0610f-7f07-490a-a234-709da46d3505" />
-  <p style="width: 100%;">
-   Оригинальное приложение. И откуда только в модах взялась эта сигнатура? 
-  </p>
-</div>
+Готовые APK находятся в [Releases](../../releases).
 
+Скачайте `tiktok-rv-original.apk` и установите его как обычный APK. SAI и ручная установка split APK не нужны.
 
-## Обзор
+Если у вас стоит одна из ранних тестовых сборок этого форка, удалите её перед первой установкой релизной версии: тестовые APK подписывались одноразовыми ключами. После перехода на релизную подпись следующие версии можно будет устанавливать поверх текущей как обычное обновление.
 
-### Применяемые патчи
+## Что исправлено в этом форке
 
-Модифицированное TikTok-приложение включает следующие функции:
+Свежие версии TikTok распространяются набором split APK. В старой логике сборки появились две проблемы:
 
-* **Меню настроек:** Добавляет пункт «ReVanced» в настройки TikTok (внизу страницы «О приложении»), где можно включать и отключать функции — в том числе новый переключатель «Пропускать рекламу при показе», управляющий автопролистыванием рекламы, прошедшей фильтр.
-* **Отключение требования входа:** Обходит обязательный экран входа/регистрации, позволяя сразу просматривать контент без аккаунта.
-* **Фильтр ленты:** Удаляет рекламу из видеоленты. Реклама распознаётся по нескольким признакам объекта `Aweme` (`adAwemeSource`, `getAwemeRawAd`, `isAd`, а также собственный классификатор TikTok `isPseudoAd` для брендовых и фото-объявлений). Объявления, которые рекламный движок вставляет в ленту уже *после* её загрузки (рекламные «поды», обходящие фильтр списка), автоматически проматываются в момент появления.
-* **Загрузки:** Принудительно включает скачивание всех видео (вероятно, функция сломана со стороны сервера), удаляет watermark TikTok из скачанных видео и изменяет директорию загрузки по умолчанию на /sdcard/Pictures/TikTok.
-* **Скорость воспроизведения:** Добавляет управление скоростью воспроизведения. Метод `getCurrentAweme` определяется по сигнатуре (fingerprint), а не по жёстко заданному обфусцированному имени, поэтому патч переносится между версиями и ветками (global/asia) без правок.
-* **Отображение seekbar:** Принудительно показывает seekbar видео, позволяя перематывать любые ролики.
-* **Запоминание Clear Display:** Сохраняет выбранный режим «Clear Display» между видео.
-* **Подмена SIM-региона:** Подменяет регион SIM-карты (по умолчанию — Латвия) для обхода региональных ограничений контента. Загрузка контента работает.
+- в качестве base APK мог ошибочно выбираться крупный dynamic-feature split вроде `df_a_dex.apk`;
+- после патчинга при merge сохранялись только `config.*` splits, хотя TikTok также требует dynamic-feature, dex, asset и resource splits во время запуска.
 
-### Pipeline выполняет следующие шаги:
+В результате часть APK не устанавливалась, а часть могла показать splash screen и сразу завершиться.
 
-1. Автоматически получает последние split APK-файлы TikTok напрямую из Google Play Store с помощью [gplaydl](https://github.com/rehmatworks/gplaydl). По умолчанию собираются обе ветки: `original` (`com.zhiliaoapp.musically`) и `asia` (`com.ss.android.ugc.trill`).
-2. Компилирует модифицированное дерево исходников revanced-patches, включённое в этот репозиторий.
-3. Использует [revanced-cli](https://github.com/revanced/revanced-cli) для внедрения патчей в байткод stripped Base APK.
-4. Объединяет пропатченный base APK с configuration split APK через [APKEditor](https://github.com/REAndroid/APKEditor), получая Universal APK для каждой выбранной ветки.
-5. Подписывает итоговые Universal APK с помощью PKCS12 keystore и загружает их в GitHub Releases. При ручном запуске Actions доступен выбор `both`, `original` или `asia`.
+Здесь схема сборки другая:
 
-## Установка (Installation)
+1. Находится и проверяется настоящий `com.zhiliaoapp.musically` base APK.
+2. ReVanced патчит только base.
+3. Пропатченный base заменяет оригинальный base.
+4. Все остальные исходные splits возвращаются без потерь.
+5. APKEditor собирает единый APK, после чего он подписывается и проверяется `apksigner`.
 
-Так как приложение теперь собирается в единый Universal APK, установка стала максимально простой:
+## Патчи
 
-1. Скачайте файл `tiktok-rv-original.apk` или `tiktok-rv-asia.apk` из [Releases](../../releases).
-2. Запустите скачанный файл и подтвердите установку. (Возможно, потребуется разрешить установку из неизвестных источников в настройках вашего устройства).
+В сборку входят:
 
-Вам больше не нужны SAI (Split APKs Installer) или ADB для установки нашего мода!
+- меню ReVanced в настройках TikTok;
+- фильтрация рекламы в ленте и автопропуск части рекламных вставок;
+- отключение обязательного экрана входа;
+- скачивание видео и удаление watermark там, где это позволяет текущая серверная логика TikTok;
+- управление скоростью воспроизведения;
+- принудительный seekbar;
+- запоминание Clear Display;
+- подмена SIM-региона, по умолчанию на Латвию.
+
+Патчи находятся в `revanced-patches` и собираются из исходников внутри репозитория.
 
 ## Вход в аккаунт
 
-> [!IMPORTANT]
-> Из-за патча **«Отключение требования входа»** обычные кнопки входа могут не работать или приводить к ошибке. Чтобы войти в существующий аккаунт, используйте поток **восстановления аккаунта**.
+Из-за патча отключения обязательного входа стандартные кнопки авторизации могут работать нестабильно. Если обычный вход не проходит:
 
-Если при входе вы видите ошибку — войдите через кнопку **«Recover Your Account»** («Восстановить аккаунт»):
+1. Откройте **Need help logging in?** / **Recover Your Account**.
+2. Укажите почту, username или номер телефона.
+3. Введите полученный код.
+4. После сообщения об успешном входе перезапустите приложение.
 
-1. Нажмите **«Need help logging in?»** («Нужна помощь со входом?»).
-2. Введите свою **почту**, **имя пользователя** или **номер телефона**.
-3. Введите **код**, который придёт вам на почту или по **SMS**.
-4. Когда приложение покажет сообщение об успешном входе — **перезапустите приложение**.
+## Подпись релизов
 
-> [!TIP]
-> После перезапуска вы будете авторизованы. Если вход всё ещё не подхватился, повторите шаги ещё раз и убедитесь, что код введён до истечения его срока действия.
+Все релизные сборки этого форка подписываются одним постоянным ключом.
 
-## Лицензия
+SHA-256 сертификата:
 
-Исходный код патчей в директории revanced-patches распространяется по лицензии GNU General Public License v3.0 (GPLv3), унаследованной от оригинального проекта  ReVanced Patches. Подробнее см. в файле LICENSE.
+```text
+B2:6B:CE:54:24:44:C1:26:40:48:57:C1:4D:36:47:0A:F3:24:52:E9:CE:D4:0A:34:A1:0C:FF:FB:47:10:1F:0F
+```
 
-## Благодарности
-* [gplaydl](https://github.com/rehmatworks/gplaydl)
-* [revanced-cli](https://github.com/revanced/revanced-cli) 
-* [revanced-patcher](https://github.com/ReVanced/revanced-patcher)
-* [revanced-patches](https://gitlab.com/ReVanced/revanced-patches)
+Workflow проверяет fingerprint перед публикацией. Если ключ не совпадает, релизная сборка завершается ошибкой.
 
+## Сборка
+
+Релизный pipeline находится в `.github/workflows/build-release.yml` и делает следующее:
+
+1. загружает актуальный TikTok из Google Play через `gplaydl` с fallback на APKPure через `apkeep`;
+2. собирает локальное дерево ReVanced patches;
+3. патчит base APK через `revanced-cli`;
+4. объединяет его со всеми исходными non-base splits через APKEditor;
+5. восстанавливает signing key из GitHub Actions Secret;
+6. подписывает и проверяет APK;
+7. публикует artifact и GitHub Release.
+
+Приватный signing key в репозиторий не коммитится.
+
+## Upstream и лицензия
+
+Этот форк основан на [thelok1s/tiktok-rv](https://github.com/thelok1s/tiktok-rv) и использует инструменты и код экосистемы ReVanced.
+
+Также используются:
+
+- [gplaydl](https://github.com/rehmatworks/gplaydl)
+- [revanced-cli](https://github.com/ReVanced/revanced-cli)
+- [revanced-patcher](https://github.com/ReVanced/revanced-patcher)
+- [APKEditor](https://github.com/REAndroid/APKEditor)
+
+Код патчей в `revanced-patches` распространяется по GPLv3; см. [LICENSE](LICENSE).
 
 ---
 
-# tiktok-rv [EN]
+## English
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/thelok1s/tiktok-rv/tiktok-patcher.yml?branch=main&label=Build)](https://github.com/thelok1s/tiktok-rv/actions/workflows/tiktok-patcher.yml) [![Latest Release](https://img.shields.io/github/v/release/thelok1s/tiktok-rv)](https://github.com/thelok1s/tiktok-rv/releases/latest) [![Downloads](https://img.shields.io/github/downloads/thelok1s/tiktok-rv/total)](https://github.com/thelok1s/tiktok-rv/releases) [![VirusTotal Scan](https://img.shields.io/badge/VirusTotal-Scan_Result-blue?logo=virustotal)](https://github.com/thelok1s/tiktok-rv/releases/latest)
+This is a **compatibility fork**, not the original TikTok-RV project. Upstream: [thelok1s/tiktok-rv](https://github.com/thelok1s/tiktok-rv).
 
-This repository contains an automated GitHub Actions pipeline for downloading the latest version of TikTok, patching it, signing it, and publishing the mod every two weeks.
+The fork keeps the same ReVanced-oriented patch set but fixes packaging for recent TikTok split-APK layouts:
 
-## What's wrong with other mods?
+- selects and validates the real TikTok base APK;
+- patches only the base;
+- preserves every required non-base split before the universal merge;
+- signs releases with one persistent key so future versions can update in place;
+- verifies the release certificate before publishing.
 
-A lot. Modders often promote their channels and inject a ton of ads, blocking the app with banners and "updates". They make downloading the new version a lengthy process with many unnecessary steps where you have to subscribe to multiple channels and click through scam links. They also add too many features to a fragile app (due to built-in protections and obfuscation), bloating the app size.
+Download the current APK from [Releases](../../releases). If you installed an earlier test build from this fork, uninstall it once before installing the first release-signed build because those tests used disposable keys.
 
-On the other hand, we have the ReVanced mod (or rather, a mix of plugins), where you modify your own official app with open-source patches. However, these patches haven't been updated in a long time, and the last version that supported them (around 36.1) is hopelessly outdated. This repository contains a basic minimum of updated patches and a pipeline to build the mod.
+Release certificate SHA-256:
 
-<div style="display: flex; flex-wrap: wrap;">
-  <img style="width: 33%;" width="710" height="357" alt="image" src="https://github.com/user-attachments/assets/effaaeac-7b47-48c3-9b45-2c9a5154ee5d" />
-  <img style="width: 33%;" width="799" height="418" alt="image" src="https://github.com/user-attachments/assets/424c0a28-0e70-4417-9b7c-9811dcc8c9e5" />
-  <img style="width: 30%;" width="801" height="459" alt="image" src="https://github.com/user-attachments/assets/80b21929-a4d8-45a8-aceb-3c6fc4af67de" />
-   <p style="width: 100%;">
-    2 popular mods and plugin. PUP (Potentially Unwanted Program) — not necessarily a virus, just a bloatware
-  </p>
-  <img style="width: 50%;" width="682" height="182" alt="image" src="https://github.com/user-attachments/assets/92a0610f-7f07-490a-a234-709da46d3505" />
-  <p style="width: 100%;">
-   And original app. Where did these signatures came from?
-  </p>
-</div>
+```text
+B2:6B:CE:54:24:44:C1:26:40:48:57:C1:4D:36:47:0A:F3:24:52:E9:CE:D4:0A:34:A1:0C:FF:FB:47:10:1F:0F
+```
 
-## Overview
-
-### Applied Patches
-
-The modified TikTok application provides the following features:
-
-* **Settings menu:** Adds a "ReVanced" entry to TikTok's settings (at the bottom of the About page) where features can be toggled — including a new "Skip ads at render" sub-toggle that controls whether the feed auto-swipes past ads that slip through the filter.
-* **Disable login requirement:** Bypasses the mandatory login/sign-up screen, allowing you to view content immediately without an account.
-* **Feed filter:** Removes advertisements from the video feed. Ads are detected via several `Aweme` signals (`adAwemeSource`, `getAwemeRawAd`, `isAd`, and TikTok's own `isPseudoAd` classifier for brand-takeover and photo ads). Ads that the ad engine injects into the feed *after* it loads (ad-pods that bypass the list filter) are automatically skipped the moment they appear.
-* **Downloads:** Force-enables downloading for all videos, removes the TikTok watermark from downloaded videos, and changes the default download directory to `/sdcard/Pictures/TikTok`.
-* **Playback speed:** Adds playback speed controls. The `getCurrentAweme` method is resolved by fingerprint rather than a hardcoded obfuscated name, so the patch carries across versions and branches (global/asia) without edits.
-* **Show seekbar:** Forces the video seekbar to be visible, allowing you to scrub through any video.
-* **Remember Clear Display:** Saves your chosen "Clear Display" mode across videos.
-* **SIM spoof:** Spoofs the SIM card region (defaults to Latvia) to bypass regional content restrictions. Content loading works.
-
-### The Pipeline executes the following steps:
-
-1. Automatically fetches the latest split APKs for TikTok directly from the Google Play Store using [gplaydl](https://github.com/rehmatworks/gplaydl). By default, both branches are built: `original` (`com.zhiliaoapp.musically`) and `asia` (`com.ss.android.ugc.trill`).
-2. Compiles the modified `revanced-patches` source tree included in this repository.
-3. Uses [revanced-cli](https://github.com/revanced/revanced-cli) to inject patches into the bytecode of the stripped Base APK.
-4. Merges the patched base APK with configuration split APKs through [APKEditor](https://github.com/REAndroid/APKEditor), producing a Universal APK for each selected branch.
-5. Signs the final Universal APKs using a PKCS12 keystore and uploads them to GitHub Releases. When running the Action manually, you can choose `both`, `original`, or `asia`.
-
-## Installation
-
-Because the app is now built as a single Universal APK, the installation is very simple:
-
-1. Download `tiktok-rv-original.apk` or `tiktok-rv-asia.apk` from [Releases](../../releases).
-2. Open the downloaded file and confirm the installation. (You may need to allow installation from unknown sources in your device settings).
-
-You no longer need SAI (Split APKs Installer) or ADB to install this mod!
-
-## Logging in
-
-> [!IMPORTANT]
-> Because of the **Disable login requirement** patch, the normal login buttons may not work or may throw an error. To sign in to an existing account, use the **account recovery** flow instead.
-
-If you hit an error while logging in, sign in through the **"Recover Your Account"** button:
-
-1. Tap **"Need help logging in?"**.
-2. Enter your **email**, **username**, or **phone number**.
-3. Enter the **code** sent to your email or via **SMS**.
-4. Once the app shows a **success message**, **restart the app**.
-
-> [!TIP]
-> After restarting, you'll be signed in. If the session still isn't picked up, repeat the steps and make sure you enter the code before it expires.
-
-## License
-
-The patch source code in the `revanced-patches` directory is licensed under the GNU General Public License v3.0 (GPLv3), inherited from the original ReVanced Patches project. See the `LICENSE` file for more details.
-
-## Credits
-* [apkeep](https://github.com/efforg/apkeep)
-* [gplaydl](https://github.com/rehmatworks/gplaydl)
-* [revanced-cli](https://github.com/revanced/revanced-cli) 
-* [revanced-patcher](https://github.com/ReVanced/revanced-patcher)
-* [revanced-patches](https://gitlab.com/ReVanced/revanced-patches)
+The current build has been tested on an Android emulator and installs, launches and runs the patched TikTok functionality correctly.
