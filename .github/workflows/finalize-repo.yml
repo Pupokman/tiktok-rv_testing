@@ -45,6 +45,7 @@ jobs:
           EOF
 
           gh release edit v46.8.3-fixed.1 \
+            --repo "$GITHUB_REPOSITORY" \
             --title "TikTok-RV 46.8.3 — fixed split build" \
             --notes-file "$RUNNER_TEMP/release-notes.md"
 
