@@ -1,0 +1,9 @@
+# Android signing material — never commit these to a public repository.
+*.jks
+*.keystore
+*.p12
+*.pfx
+signing-bundle*
+release.keystore
+password.txt
+alias.txt
