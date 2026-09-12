@@ -2,6 +2,11 @@ name: Build TikTok-RV release
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build-release.yml
 
 permissions:
   contents: write
@@ -166,8 +171,6 @@ jobs:
           rm -rf "$SPLITS_DIR"
           mkdir -p "$SPLITS_DIR"
 
-          # Replace only the stock base. Recent TikTok builds require the
-          # remaining dynamic-feature, dex, asset, resource and config splits.
           cp unsigned-tiktok-original.apk "$SPLITS_DIR/base.apk"
 
           INCLUDED=0
