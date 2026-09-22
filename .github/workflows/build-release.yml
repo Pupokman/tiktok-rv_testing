@@ -1,13 +1,13 @@
 name: Build TikTok-RV release
-# release-trigger: TikTok 47.0.3
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/build-release.yml
+    inputs:
+      upstream_changelog:
+        description: "Paraphrase of the official TikTok changelog for this release"
+        required: false
+        type: string
+        default: "No detailed upstream changelog was supplied for this build."
 
 permissions:
   contents: write
@@ -273,25 +273,33 @@ jobs:
           NOTES_FILE="$RUNNER_TEMP/release-notes.md"
 
           cat > "$NOTES_FILE" <<EOF
-          Compatibility build for TikTok ${TIKTOK_VERSION} based on the open-source TikTok-RV/ReVanced patch set.
+          ## TikTok-RV ${TIKTOK_VERSION}
 
-          This repository is a fork of [thelok1s/tiktok-rv](https://github.com/thelok1s/tiktok-rv), not the original project.
+          > [!IMPORTANT]
+          > **Unofficial build.** This APK is not the original TikTok APK and is not published, endorsed, or supported by TikTok Pte. Ltd. or ByteDance. It is a third-party patched compatibility build based on TikTok-RV/ReVanced patches.
+          >
+          > This repository is a fork of [thelok1s/tiktok-rv](https://github.com/thelok1s/tiktok-rv), not the upstream project.
 
-          ### What is fixed
+          ### TikTok upstream changes
+          ${UPSTREAM_CHANGELOG:-No detailed upstream changelog was supplied for this build.}
+
+          ### Changes in this fork
           - selects the real TikTok base APK instead of a dynamic-feature split;
           - keeps every required non-base split during the universal APK merge, preventing the splash-screen crash seen in newer TikTok builds;
-          - uses one persistent release signing key so future releases can be installed as updates.
+          - uses one persistent release signing key so releases from this fork can be installed as normal updates.
 
           ### Included patches
           ReVanced settings, feed ad filtering, downloads, SIM region spoof, remembered Clear Display, seekbar, playback speed, and optional login-requirement bypass.
 
-          ### Installation note
-          Earlier test builds from this fork used disposable signing keys. Uninstall those once before installing this release. Future releases signed with this release key should update normally.
+          ### Installation
+          Release builds starting with v46.8.3-fixed.1 use the same signing key and should update normally. Very early test builds used disposable keys and must be uninstalled once before installing a release build.
+
+          ### Verification
+          Built by GitHub Actions. Before publication the workflow verifies package metadata, AndroidManifest.xml, the APK signature, and the expected signing certificate.
 
           Release signing certificate SHA-256:
-          B2:6B:CE:54:24:44:C1:26:40:48:57:C1:4D:36:47:0A:F3:24:52:E9:CE:D4:0A:34:A1:0C:FF:FB:47:10:1F:0F
 
-          Tested on an Android emulator: installation, launch and patched TikTok functionality are working.
+          `B2:6B:CE:54:24:44:C1:26:40:48:57:C1:4D:36:47:0A:F3:24:52:E9:CE:D4:0A:34:A1:0C:FF:FB:47:10:1F:0F`
           EOF
 
           if gh release view "$TAG" >/dev/null 2>&1; then
