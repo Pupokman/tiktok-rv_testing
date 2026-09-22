@@ -1,0 +1,324 @@
+name: Temporary MD Russian localization
+
+on:
+  push:
+    branches:
+      - temp-md-rus-localize-20260922
+
+permissions:
+  contents: read
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout helper branch
+        uses: actions/checkout@v4
+
+      - name: Checkout exact Millennium Dawn source
+        uses: actions/checkout@v4
+        with:
+          repository: MillenniumDawn/Millennium-Dawn
+          ref: e01b6454568f5d1629b7e6bb651176d5afd69243
+          path: md
+
+      - name: Translate remaining player-facing English
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet requests
+          cat > /tmp/translate_md.py <<'PY'
+          from pathlib import Path
+          import re, json, time, random, requests, collections
+          from concurrent.futures import ThreadPoolExecutor, as_completed
+
+          ROOT = Path("md")
+          EN = ROOT / "localisation" / "english"
+          RU = ROOT / "localisation" / "russian"
+          OUT = Path("out")
+          OUT.mkdir(exist_ok=True)
+
+          line_re = re.compile(r'^\s*([^#\s][^:]*?):(?:\d+)?\s+"((?:\\.|[^"\\])*)"\s*(?:#.*)?$')
+          cy = re.compile(r'[А-Яа-яЁё]')
+          latin_word = re.compile(r"[A-Za-z][A-Za-z'’-]{1,}")
+          protected_re = re.compile(
+              r'\$[^$]+\$|\[[^\]]+\]|§[0-9A-Za-z!]|£[A-Za-z0-9_]+|'
+              r'\\n|\\t|\?[A-Za-z0-9_.@\^|%+\-]+|@[A-Za-z0-9_]+'
+          )
+          stop = set("""the a an and or of to in on for from with without at by into over under is are was were be been being
+          will would should can could may might must this that these those our your their his her its we you they he she it
+          as if then than when where while during through after before against between among not no yes have has had do does
+          did more less most least new old current available allow allows allowed requires required requirement cost costs
+          gain gains gets get add adds remove removes increase increases decrease decreases support power popularity stability
+          war government country countries state states party parties army navy air force forces decision decisions focus
+          focuses event events option options mission missions national political economic military foreign domestic research
+          production construction investment investments debt tax taxes budget trade market markets industry industries
+          technology technologies nuclear space missile missiles people public private reform reforms law laws policy policies
+          system systems company companies workers work rights security defense defence president king queen parliament council
+          union alliance world regional local relations relationship cooperation development expand expansion program programme
+          build building improve improvements control campaign crisis economy revenue expense expenses income subsidy subsidies
+          tariff tariffs inflation unemployment corruption population election elections resources agriculture infrastructure
+          education healthcare energy oil gas coal renewable renewables diplomacy compliance resistance influence coalition
+          export import deficit surplus""".split())
+
+          single_allow = set("""revenue revenues expense expenses income incomes subsidy subsidies tariff tariffs inflation
+          unemployment corruption population government economy military army navy research technology construction production
+          trade diplomacy security stability compliance resistance influence coalition election elections parliament council
+          taxes tax debt deficit surplus budget export import resources industry agriculture infrastructure education healthcare
+          energy power oil gas coal nuclear renewables investment investments manpower logistics intelligence ideology ideologies
+          democracy democratic monarchy monarchist communism communist fascism fascist nationalism nationalist privatization
+          nationalization sanctions reform reforms law laws policy policies""".split())
+
+          def parse(root):
+              d = {}
+              loc = {}
+              for p in root.rglob("*.yml"):
+                  rel = p.relative_to(root).as_posix()
+                  for i, line in enumerate(p.read_text(encoding="utf-8-sig", errors="replace").splitlines(), 1):
+                      m = line_re.match(line)
+                      if m:
+                          k = m.group(1).strip()
+                          d[k] = m.group(2)
+                          loc[k] = (rel, i)
+              return d, loc
+
+          eng, el = parse(EN)
+          rus, rl = parse(RU)
+
+          def player_facing_score(value, key):
+              t = protected_re.sub(" ", value)
+              words = latin_word.findall(t)
+              if not words:
+                  return 0, words
+              common = [w for w in words if w.lower() in stop]
+              score = len(common) * 4 + sum(1 for w in words if w[:1].islower())
+              if len(words) >= 4:
+                  score += 6
+              if any(x in value for x in [". ", "! ", "? ", "; ", ": "]):
+                  score += 3
+              kl = key.lower()
+              if kl.endswith(("_desc", "_tt", ".d", ".a", ".b", ".c", ".e", ".f")):
+                  score += 4
+              if len(words) == 1 and words[0].lower() in single_allow:
+                  score += 10
+              return score, words
+
+          def likely_model_or_name(value, key):
+              clean = protected_re.sub(" ", value).strip()
+              # Preserve obvious designations/codes and bare acronyms.
+              if re.fullmatch(r'[A-Z0-9][A-Z0-9 ._+\-/()]{0,35}', clean):
+                  return True
+              if re.fullmatch(r'[A-Z]{1,6}-?\d+[A-Za-z0-9 ._+\-/()]*', clean):
+                  return True
+              # Bare person/company/product names with no grammatical words are safer left alone.
+              words = latin_word.findall(clean)
+              if 1 <= len(words) <= 4 and all(w[:1].isupper() for w in words):
+                  if not any(w.lower() in stop or w.lower() in single_allow for w in words):
+                      kl = key.lower()
+                      if not kl.endswith(("_desc", "_tt", ".d", ".a", ".b", ".c", ".e", ".f")):
+                          return True
+              return False
+
+          candidates = {}
+          for k, ev in eng.items():
+              rv = rus.get(k)
+              if rv is None:
+                  continue
+              # Main target: Russian entry still byte-for-byte English.
+              if rv != ev:
+                  continue
+              score, words = player_facing_score(ev, k)
+              if score < 7 or len(words) < 1:
+                  continue
+              if likely_model_or_name(ev, k):
+                  continue
+              candidates[k] = ev
+
+          print("candidate keys:", len(candidates))
+
+          # Translate unique values once.
+          by_value = collections.defaultdict(list)
+          for k, v in candidates.items():
+              by_value[v].append(k)
+          values = list(by_value)
+
+          PH_BASE = "ZXQPH"
+          SEP = "ZXQSEPZXQ"
+
+          def protect(text):
+              toks = []
+              def repl(m):
+                  i = len(toks)
+                  toks.append(m.group(0))
+                  return f"{PH_BASE}{i:04d}QXZ"
+              return protected_re.sub(repl, text), toks
+
+          def restore(text, toks):
+              for i, tok in enumerate(toks):
+                  ph = f"{PH_BASE}{i:04d}QXZ"
+                  text = re.sub(re.escape(ph), lambda _: tok, text, flags=re.I)
+              return text
+
+          def google_translate(text):
+              url = "https://translate.googleapis.com/translate_a/single"
+              params = {"client":"gtx","sl":"en","tl":"ru","dt":"t","q":text}
+              last = None
+              for attempt in range(7):
+                  try:
+                      r = requests.get(url, params=params, timeout=30, headers={
+                          "User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36"
+                      })
+                      if r.status_code == 200:
+                          data = r.json()
+                          return "".join(seg[0] for seg in data[0] if seg and seg[0] is not None)
+                      last = RuntimeError(f"HTTP {r.status_code}: {r.text[:120]}")
+                  except Exception as e:
+                      last = e
+                  time.sleep(min(12, 0.8 * (2 ** attempt)) + random.random())
+              raise last or RuntimeError("translation failed")
+
+          def make_batches(items, max_chars=3200, max_items=28):
+              batches = []
+              cur = []
+              size = 0
+              for item in items:
+                  # Protected text size can grow, allow margin.
+                  n = len(item) + len(SEP) + 4
+                  if cur and (size + n > max_chars or len(cur) >= max_items):
+                      batches.append(cur)
+                      cur = []
+                      size = 0
+                  cur.append(item)
+                  size += n
+              if cur:
+                  batches.append(cur)
+              return batches
+
+          batches = make_batches(values)
+          print("unique values:", len(values), "batches:", len(batches))
+
+          result = {}
+          failures = []
+
+          def translate_batch(batch):
+              protected = []
+              token_lists = []
+              for s in batch:
+                  p, toks = protect(s)
+                  protected.append(p)
+                  token_lists.append(toks)
+              joined = ("\n" + SEP + "\n").join(protected)
+              out = google_translate(joined)
+              parts = re.split(r'\s*' + re.escape(SEP) + r'\s*', out)
+              if len(parts) != len(batch):
+                  # Robust fallback: translate entries individually for this batch.
+                  parts = []
+                  for p in protected:
+                      parts.append(google_translate(p))
+              restored = [restore(p.strip(), toks) for p, toks in zip(parts, token_lists)]
+              return list(zip(batch, restored))
+
+          with ThreadPoolExecutor(max_workers=18) as ex:
+              futs = {ex.submit(translate_batch, b): b for b in batches}
+              done = 0
+              for fut in as_completed(futs):
+                  b = futs[fut]
+                  try:
+                      for src, dst in fut.result():
+                          result[src] = dst
+                  except Exception as e:
+                      failures.append({"batch": b, "error": repr(e)})
+                  done += 1
+                  if done % 50 == 0 or done == len(batches):
+                      print("batches", done, "/", len(batches), "translated values", len(result), "failed batches", len(failures))
+
+          # DeSlop + MD/HOI4 terminology normalisation.
+          def deslop(src, text):
+              replacements = [
+                  ("дерево фокусировки", "дерево фокусов"),
+                  ("дерево фокуса", "дерево фокусов"),
+                  ("фокусное дерево", "дерево фокусов"),
+                  ("национальная направленность", "национальный фокус"),
+                  ("политическая сила", "политическая власть"),
+                  ("командная сила", "командный ресурс"),
+                  ("командная мощь", "командный ресурс"),
+                  ("исследовательская скорость", "скорость исследований"),
+                  ("скорость исследования", "скорость исследований"),
+                  ("потребительские товары", "товары народного потребления"),
+                  ("военная фабрика", "военный завод"),
+                  ("военные фабрики", "военные заводы"),
+                  ("мировое напряжение", "мировая напряжённость"),
+                  ("мировая напряженность", "мировая напряжённость"),
+                  ("национальный дух", "национальный дух"),
+                  ("фокус завершен", "фокус выполнен"),
+                  ("фокус завершён", "фокус выполнен"),
+              ]
+              for a, b in replacements:
+                  text = text.replace(a, b).replace(a.capitalize(), b.capitalize())
+              low = src.lower()
+              if "war support" in low:
+                  text = text.replace("военная поддержка", "поддержка войны").replace("Военная поддержка", "Поддержка войны")
+              if "manpower" in low:
+                  text = text.replace("рабочая сила", "людские ресурсы").replace("Рабочая сила", "Людские ресурсы")
+              if "political power" in low:
+                  text = text.replace("политическая сила", "политическая власть").replace("Политическая сила", "Политическая власть")
+              if "command power" in low:
+                  text = text.replace("командная сила", "командный ресурс").replace("Командная сила", "Командный ресурс")
+              if "national spirit" in low:
+                  text = text.replace("национальный дух", "национальный дух")
+              if "outlook" in low:
+                  text = text.replace("мировоззрение", "ориентация").replace("Мировоззрение", "Ориентация")
+              # Typography: avoid English-style spaced hyphen in prose.
+              text = re.sub(r'(?<=\w)\s+-\s+(?=\w)', ' — ', text)
+              text = re.sub(r'[ \t]{2,}', ' ', text)
+              return text.strip()
+
+          key_map = {}
+          untranslated = []
+          token_mismatch = []
+
+          def tokens(s):
+              return protected_re.findall(s)
+
+          for src, keys in by_value.items():
+              dst = result.get(src)
+              if not dst:
+                  untranslated.extend(keys)
+                  continue
+              dst = deslop(src, dst)
+              if collections.Counter(tokens(src)) != collections.Counter(tokens(dst)):
+                  token_mismatch.extend(keys)
+                  continue
+              for k in keys:
+                  key_map[k] = dst
+
+          payload = {
+              "source_commit":"e01b6454568f5d1629b7e6bb651176d5afd69243",
+              "candidate_count":len(candidates),
+              "unique_source_values":len(values),
+              "translated_key_count":len(key_map),
+              "untranslated_keys":untranslated,
+              "token_mismatch_keys":token_mismatch,
+              "failed_batches":failures,
+              "translations":key_map,
+          }
+          (OUT / "md_ru_translation_map.json").write_text(
+              json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+          )
+          print(json.dumps({k:payload[k] for k in [
+              "candidate_count","unique_source_values","translated_key_count"
+          ]}, ensure_ascii=False))
+          print("untranslated", len(untranslated), "token mismatch", len(token_mismatch), "failed batches", len(failures))
+          PY
+          python /tmp/translate_md.py
+          gzip -9 -k out/md_ru_translation_map.json
+
+      - name: Upload translation map
+        uses: actions/upload-artifact@v4
+        with:
+          name: md-russian-translation-map
+          path: |
+            out/md_ru_translation_map.json
+            out/md_ru_translation_map.json.gz
+          retention-days: 1
