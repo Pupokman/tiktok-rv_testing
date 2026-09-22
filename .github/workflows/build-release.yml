@@ -1,4 +1,5 @@
 name: Build TikTok-RV release
+# release-trigger: TikTok 47.0.3
 
 on:
   workflow_dispatch:
