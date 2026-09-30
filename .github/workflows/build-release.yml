@@ -24,6 +24,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Resolve release changelog
+        env:
+          DISPATCH_CHANGELOG: ${{ inputs.upstream_changelog }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "push" ] && [ -s ".github/release-trigger" ]; then
+            CHANGELOG=$(cat .github/release-trigger)
+          else
+            CHANGELOG="${DISPATCH_CHANGELOG:-No detailed upstream changelog was supplied for this build.}"
+          fi
+
+          {
+            echo 'UPSTREAM_CHANGELOG<<EOF'
+            echo "$CHANGELOG"
+            echo 'EOF'
+          } >> "$GITHUB_ENV"
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -267,7 +286,6 @@ jobs:
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          UPSTREAM_CHANGELOG: "TikTok 47.1.4 makes it easier to post videos and photos, with bug fixes and performance improvements."
         shell: bash
         run: |
           set -euo pipefail
@@ -275,6 +293,7 @@ jobs:
           TAG="v${TIKTOK_VERSION}-fixed.1"
           TITLE="TikTok-RV ${TIKTOK_VERSION} — fixed split build"
           NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+          APK_SHA256=$(cut -d' ' -f1 tiktok-rv-original.apk.sha256)
 
           cat > "$NOTES_FILE" <<EOF
           ## TikTok-RV ${TIKTOK_VERSION}
@@ -284,7 +303,7 @@ jobs:
           >
           > This repository is a fork of [thelok1s/tiktok-rv](https://github.com/thelok1s/tiktok-rv), not the upstream project.
 
-          ### TikTok upstream changes
+          ### TikTok ${TIKTOK_VERSION} — upstream changes
           ${UPSTREAM_CHANGELOG:-No detailed upstream changelog was supplied for this build.}
 
           ### Changes in this fork
@@ -301,9 +320,13 @@ jobs:
           ### Verification
           Built by GitHub Actions. Before publication the workflow verifies package metadata, AndroidManifest.xml, the APK signature, and the expected signing certificate.
 
-          Release signing certificate SHA-256:
+          **APK SHA-256**
 
-          `B2:6B:CE:54:24:44:C1:26:40:48:57:C1:4D:36:47:0A:F3:24:52:E9:CE:D4:0A:34:A1:0C:FF:FB:47:10:1F:0F`
+          \`${APK_SHA256}\`
+
+          **Release signing certificate SHA-256**
+
+          \`B2:6B:CE:54:24:44:C1:26:40:48:57:C1:4D:36:47:0A:F3:24:52:E9:CE:D4:0A:34:A1:0C:FF:FB:47:10:1F:0F\`
           EOF
 
           if gh release view "$TAG" >/dev/null 2>&1; then
