@@ -8,6 +8,9 @@ on:
         required: false
         type: string
         default: "No detailed upstream changelog was supplied for this build."
+  push:
+    paths:
+      - ".github/release-trigger"
 
 permissions:
   contents: write
@@ -264,6 +267,7 @@ jobs:
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          UPSTREAM_CHANGELOG: "TikTok 47.1.4 makes it easier to post videos and photos, with bug fixes and performance improvements."
         shell: bash
         run: |
           set -euo pipefail
