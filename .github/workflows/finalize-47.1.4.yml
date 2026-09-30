@@ -1,0 +1,55 @@
+name: Finalize TikTok-RV 47.1.4 release notes
+
+on:
+  push:
+    paths:
+      - ".github/workflows/finalize-47.1.4.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/release-notes.md" <<'EOF'
+          ## TikTok-RV 47.1.4
+
+          > [!IMPORTANT]
+          > **Unofficial build.** This APK is not the original TikTok APK and is not published, endorsed, or supported by TikTok Pte. Ltd. or ByteDance. It is a third-party patched compatibility build based on TikTok-RV/ReVanced patches.
+          >
+          > This repository is a fork of [thelok1s/tiktok-rv](https://github.com/thelok1s/tiktok-rv), not the upstream project.
+
+          ### TikTok 47.1.4 — upstream changes
+          TikTok 47.1.4 makes it easier to post videos and photos, with bug fixes and performance improvements.
+
+          ### What this fork fixes
+          - selects the real TikTok base APK instead of a dynamic-feature split;
+          - keeps every required non-base split during the universal APK merge, preventing the splash-screen crash seen in newer TikTok builds;
+          - uses one persistent release signing key so releases from this fork can be installed as normal updates.
+
+          ### Included patches
+          ReVanced settings, feed ad filtering, downloads, SIM region spoof, remembered Clear Display, seekbar, playback speed, and optional login-requirement bypass.
+
+          ### Updating
+          This release uses the same signing key as v46.8.3-fixed.1, v46.9.3-fixed.1, and v47.0.3-fixed.1, so it can be installed over those releases without uninstalling them. Very early test APKs used disposable signing keys and must be removed once before switching to release builds.
+
+          ### Build verification
+          GitHub Actions completed base selection, ReVanced patching, all-splits merge, package/manifest validation, APK signature verification and signing-certificate verification before publication.
+
+          **APK SHA-256**
+
+          `10f702ad29cd767ac577aea95b24efc50ac61134c9700d5d57ef9899cc6941b7`
+
+          **Release signing certificate SHA-256**
+
+          `B2:6B:CE:54:24:44:C1:26:40:48:57:C1:4D:36:47:0A:F3:24:52:E9:CE:D4:0A:34:A1:0C:FF:FB:47:10:1F:0F`
+          EOF
+
+          gh release edit "v47.1.4-fixed.1"             --repo "${{ github.repository }}"             --title "TikTok-RV 47.1.4 — fixed split build"             --notes-file "$RUNNER_TEMP/release-notes.md"
