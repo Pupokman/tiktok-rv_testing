@@ -12,6 +12,7 @@ import app.revanced.extension.tiktok.settings.preference.categories.DownloadsPre
 import app.revanced.extension.tiktok.settings.preference.categories.ExtensionPreferenceCategory;
 import app.revanced.extension.tiktok.settings.preference.categories.FeedFilterPreferenceCategory;
 import app.revanced.extension.tiktok.settings.preference.categories.SimSpoofPreferenceCategory;
+import app.revanced.extension.tiktok.settings.preference.categories.SmartProxyPreferenceCategory;
 
 /**
  * Preference fragment for ReVanced settings
@@ -53,6 +54,7 @@ public class TikTokPreferenceFragment extends AbstractPreferenceFragment {
         // Custom categories reference app specific Settings class.
         new FeedFilterPreferenceCategory(context, preferenceScreen);
         new DownloadsPreferenceCategory(context, preferenceScreen);
+        new SmartProxyPreferenceCategory(context, preferenceScreen);
         new SimSpoofPreferenceCategory(context, preferenceScreen);
         new ExtensionPreferenceCategory(context, preferenceScreen);
     }
