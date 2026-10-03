@@ -72,10 +72,15 @@ public final class SmartProxy {
 
             if (!Settings.SMART_PROXY_ENABLED.get()) {
                 synchronized (LOCK) {
+                    int engineIdentity = System.identityHashCode(cronetEngine);
+                    if (serverSocket == null && lastAppliedRule.isEmpty() &&
+                            lastCronetEngineIdentity == engineIdentity) {
+                        return;
+                    }
                     stopLocalProxyLocked();
                     applyTTNetRule(null);
                     lastAppliedRule = "";
-                    lastCronetEngineIdentity = System.identityHashCode(cronetEngine);
+                    lastCronetEngineIdentity = engineIdentity;
                 }
                 return;
             }
