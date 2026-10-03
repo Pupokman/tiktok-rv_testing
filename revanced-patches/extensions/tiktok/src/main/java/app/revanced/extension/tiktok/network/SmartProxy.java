@@ -10,7 +10,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -63,16 +62,15 @@ public final class SmartProxy {
     /**
      * Called from a TTNet hook after/while Cronet is available. Safe to call repeatedly.
      */
-    public static void apply() {
+    public static void apply(Object cronetClient) {
         try {
-            Object cronetEngine = getCronetEngine();
-            if (cronetEngine == null) {
+            if (cronetClient == null) {
                 return;
             }
 
             if (!Settings.SMART_PROXY_ENABLED.get()) {
                 synchronized (LOCK) {
-                    int engineIdentity = System.identityHashCode(cronetEngine);
+                    int engineIdentity = System.identityHashCode(cronetClient);
                     if (serverSocket == null && lastAppliedRule.isEmpty() &&
                             lastCronetEngineIdentity == engineIdentity) {
                         return;
@@ -100,7 +98,7 @@ public final class SmartProxy {
                     lastAppliedRule = "";
                 }
 
-                int engineIdentity = System.identityHashCode(cronetEngine);
+                int engineIdentity = System.identityHashCode(cronetClient);
                 String rule = "http=127.0.0.1:" + serverSocket.getLocalPort();
                 if (!rule.equals(lastAppliedRule) || engineIdentity != lastCronetEngineIdentity) {
                     applyTTNetRule(rule);
@@ -111,17 +109,6 @@ public final class SmartProxy {
             }
         } catch (Throwable throwable) {
             Logger.printException(() -> "Smart proxy apply failed", throwable);
-        }
-    }
-
-    private static Object getCronetEngine() {
-        try {
-            Class<?> cronetClient = Class.forName("org.chromium.CronetClient");
-            Field field = cronetClient.getDeclaredField("sCronetEngine");
-            field.setAccessible(true);
-            return field.get(null);
-        } catch (Throwable ignored) {
-            return null;
         }
     }
 
