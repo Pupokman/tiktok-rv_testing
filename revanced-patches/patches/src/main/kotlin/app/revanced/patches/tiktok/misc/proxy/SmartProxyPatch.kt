@@ -6,9 +6,10 @@ import app.revanced.patcher.patch.bytecodePatch
 import app.revanced.patches.tiktok.misc.extension.sharedExtensionPatch
 import app.revanced.patches.tiktok.misc.settings.settingsStatusLoadMethod
 import com.android.tools.smali.dexlib2.Opcode
+import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 
 private const val SMART_PROXY_DESCRIPTOR =
-    "Lapp/revanced/extension/tiktok/network/SmartProxy;->apply()V"
+    "Lapp/revanced/extension/tiktok/network/SmartProxy;->apply(Ljava/lang/Object;)V"
 
 private val BytecodePatchContext.ttNetGetCronetHttpClientMethod by gettingFirstMethodDeclaratively {
     name("getCronetHttpClient")
@@ -39,7 +40,8 @@ val smartProxyPatch = bytecodePatch(
                 }
 
             returnIndices.asReversed().forEach { index ->
-                addInstruction(index, "invoke-static {}, $SMART_PROXY_DESCRIPTOR")
+                val resultRegister = getInstruction<OneRegisterInstruction>(index).registerA
+                addInstruction(index, "invoke-static {v$resultRegister}, $SMART_PROXY_DESCRIPTOR")
             }
         }
 
