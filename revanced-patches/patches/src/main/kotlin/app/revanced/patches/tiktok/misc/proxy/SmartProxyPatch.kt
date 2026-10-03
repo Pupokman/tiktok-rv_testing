@@ -3,6 +3,7 @@ package app.revanced.patches.tiktok.misc.proxy
 import app.revanced.patcher.*
 import app.revanced.patcher.extensions.addInstruction
 import app.revanced.patcher.extensions.getInstruction
+import app.revanced.patcher.patch.BytecodePatchContext
 import app.revanced.patcher.patch.bytecodePatch
 import app.revanced.patches.tiktok.misc.extension.sharedExtensionPatch
 import app.revanced.patches.tiktok.misc.settings.settingsStatusLoadMethod
