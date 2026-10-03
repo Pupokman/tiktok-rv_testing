@@ -4,6 +4,7 @@ public class SettingsStatus {
     public static boolean feedFilterEnabled = false;
     public static boolean downloadEnabled = false;
     public static boolean simSpoofEnabled = false;
+    public static boolean smartProxyEnabled = false;
 
     public static void enableFeedFilter() {
         feedFilterEnabled = true;
@@ -15,6 +16,10 @@ public class SettingsStatus {
 
     public static void enableSimSpoof() {
         simSpoofEnabled = true;
+    }
+
+    public static void enableSmartProxy() {
+        smartProxyEnabled = true;
     }
 
     public static void load() {
