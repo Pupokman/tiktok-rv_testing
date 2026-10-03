@@ -23,4 +23,21 @@ public class Settings extends BaseSettings {
     public static final StringSetting SIM_SPOOF_ISO = new StringSetting("simspoof_iso", "lv");
     public static final StringSetting SIMSPOOF_MCCMNC = new StringSetting("simspoof_mccmnc", "24701");
     public static final StringSetting SIMSPOOF_OP_NAME = new StringSetting("simspoof_op_name", "LMT");
+
+    public static final BooleanSetting SMART_PROXY_ENABLED =
+            new BooleanSetting("smart_proxy_enabled", FALSE, true);
+    public static final StringSetting SMART_PROXY_TYPE =
+            new StringSetting("smart_proxy_type", "http");
+    public static final StringSetting SMART_PROXY_HOST =
+            new StringSetting("smart_proxy_host", "");
+    public static final StringSetting SMART_PROXY_PORT =
+            new StringSetting("smart_proxy_port", "1080");
+    public static final StringSetting SMART_PROXY_USERNAME =
+            new StringSetting("smart_proxy_username", "");
+    public static final StringSetting SMART_PROXY_PASSWORD =
+            new StringSetting("smart_proxy_password", "");
+    public static final BooleanSetting SMART_PROXY_FALLBACK_DIRECT =
+            new BooleanSetting("smart_proxy_fallback_direct", TRUE, true);
+    public static final StringSetting SMART_PROXY_EXTRA_API_HOSTS =
+            new StringSetting("smart_proxy_extra_api_hosts", "");
 }
