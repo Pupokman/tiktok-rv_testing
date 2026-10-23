@@ -1,2 +1,1 @@
-TikTok-RV 47.1.4 release trigger
-2026-09-30
+TikTok 47.5.3 is a maintenance-focused upstream update. TikTok's public release notes do not list a specific headline feature set for this build, so this release does not invent one: the practical change is the move to the newer 47.5.3 base with TikTok's latest bug fixes, stability work, and smaller updates to existing features.
